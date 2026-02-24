@@ -104,16 +104,21 @@ export default function App() {
   const blank = { so:"", name:"", company:"", peptide:"", endotoxin:"", sterility:"" };
   const [form, setForm]       = useState(blank);
 
-  useEffect(() => {
-    (async () => {
-      try { const r=await window.storage.get("so-v5"); if(r) setOrders(JSON.parse(r.value)); } catch(e){}
-      setLoaded(true);
-    })();
+ useEffect(() => {
+    try {
+      const saved = localStorage.getItem("so-v5");
+      if (saved) setOrders(JSON.parse(saved));
+    } catch(e) {}
+    setLoaded(true);
   }, []);
+
   useEffect(() => {
     if (!loaded) return;
-    (async () => { try { await window.storage.set("so-v5", JSON.stringify(orders)); } catch(e){} })();
+    try {
+      localStorage.setItem("so-v5", JSON.stringify(orders));
+    } catch(e) {}
   }, [orders, loaded]);
+```
 
   function add() {
     if (!form.so || !form.name) return;
