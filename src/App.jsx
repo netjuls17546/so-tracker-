@@ -42,13 +42,7 @@ function InlineEdit({ value, onChange, type="text", placeholder="—", mono=fals
       onChange={e => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={e => { if(e.key==="Enter") commit(); if(e.key==="Escape"){setDraft(String(value));setOn(false);} }}
-      style={{
-        border:"none", borderBottom:"1.5px solid #3b82f6", outline:"none",
-        background:"transparent", fontFamily:ff, fontSize:"inherit",
-        color:"inherit", padding:"0 2px",
-        width: type==="number" ? 46 : "100%",
-        minWidth: type==="number" ? 46 : 60,
-      }}
+      style={{ border:"none", borderBottom:"1.5px solid #3b82f6", outline:"none", background:"transparent", fontFamily:ff, fontSize:"inherit", color:"inherit", padding:"0 2px", width:type==="number"?46:"100%", minWidth:type==="number"?46:60 }}
     />
   );
 
@@ -56,7 +50,7 @@ function InlineEdit({ value, onChange, type="text", placeholder="—", mono=fals
   return (
     <span onClick={() => { setDraft(String(value??"")); setOn(true); }}
       title="Click to edit"
-      style={{ cursor:"text", fontFamily:ff, color: (empty && placeholder==="—") ? "#3f4a5c" : "inherit" }}>
+      style={{ cursor:"text", fontFamily:ff, color:(empty && placeholder==="—")?"#3f4a5c":"inherit" }}>
       {empty && placeholder==="—" ? "—" : String(value)}
     </span>
   );
@@ -65,16 +59,7 @@ function InlineEdit({ value, onChange, type="text", placeholder="—", mono=fals
 function Toggle({ value, onChange, label }) {
   return (
     <button onClick={() => onChange(!value)} title={label}
-      style={{
-        display:"inline-flex", alignItems:"center", justifyContent:"center",
-        width:30, height:30, borderRadius:7,
-        border: value ? "1px solid rgba(52,211,153,0.4)" : "1px solid rgba(255,255,255,0.08)",
-        background: value ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.03)",
-        color: value ? "#34d399" : "#3f4a5c",
-        cursor:"pointer", fontSize:13, fontWeight:700,
-        transition:"all 0.18s", flexShrink:0,
-        boxShadow: value ? "0 0 10px rgba(52,211,153,0.15)" : "none",
-      }}>
+      style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", width:30, height:30, borderRadius:7, border:value?"1px solid rgba(52,211,153,0.4)":"1px solid rgba(255,255,255,0.08)", background:value?"rgba(52,211,153,0.12)":"rgba(255,255,255,0.03)", color:value?"#34d399":"#3f4a5c", cursor:"pointer", fontSize:13, fontWeight:700, transition:"all 0.18s", flexShrink:0, boxShadow:value?"0 0 10px rgba(52,211,153,0.15)":"none" }}>
       {value ? "✓" : "✕"}
     </button>
   );
@@ -87,45 +72,33 @@ function Dot({ color, size=7 }) {
 function StatBar({ segments }) {
   return (
     <div style={{ height:3, borderRadius:99, overflow:"hidden", display:"flex", background:"rgba(255,255,255,0.04)" }}>
-      {segments.map((s,i) => (
-        <div key={i} style={{ height:"100%", background:s.color, width:`${s.pct}%`, transition:"width 0.6s ease" }}/>
-      ))}
+      {segments.map((s,i) => <div key={i} style={{ height:"100%", background:s.color, width:`${s.pct}%`, transition:"width 0.6s ease" }}/>)}
     </div>
   );
 }
 
-// ── localStorage helpers ──────────────────────────────────────
-const STORAGE_KEY = "so-tracker-orders-v5";
-
-function loadOrders() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch(e) {
-    return [];
-  }
+// Sort arrow indicator
+function SortArrow({ col, sortCol, sortDir }) {
+  if (sortCol !== col) return <span style={{ opacity:0.2, fontSize:9, marginLeft:3 }}>⇅</span>;
+  return <span style={{ fontSize:9, marginLeft:3, color:"#60a5fa" }}>{sortDir==="asc" ? "↑" : "↓"}</span>;
 }
 
-function saveOrders(orders) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
-  } catch(e) {}
-}
-// ─────────────────────────────────────────────────────────────
+const STORAGE_KEY = "so-tracker-orders-v6";
+function loadOrders() { try { const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):[]; } catch(e){return[];} }
+function saveOrders(o) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(o)); } catch(e){} }
 
 export default function App() {
-  const [orders, setOrders]   = useState(() => loadOrders());
-  const [tab, setTab]         = useState("orders");
-  const [modal, setModal]     = useState(false);
-  const [search, setSearch]   = useState("");
-  const [filter, setFilter]   = useState("all");
+  const [orders, setOrders] = useState(() => loadOrders());
+  const [tab, setTab]       = useState("orders");
+  const [modal, setModal]   = useState(false);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [sortCol, setSortCol]   = useState("createdAt");
+  const [sortDir, setSortDir]   = useState("desc");
   const blank = { so:"", name:"", company:"", peptide:"", endotoxin:"", sterility:"" };
-  const [form, setForm]       = useState(blank);
+  const [form, setForm] = useState(blank);
 
-  // Save to localStorage every time orders change
-  useEffect(() => {
-    saveOrders(orders);
-  }, [orders]);
+  useEffect(() => { saveOrders(orders); }, [orders]);
 
   function add() {
     if (!form.so || !form.name) return;
@@ -140,16 +113,45 @@ export default function App() {
   function upd(id, f, v) { setOrders(p => p.map(o => o.id===id ? {...o,[f]:v} : o)); }
   function del(id) { if(confirm("Delete this order?")) setOrders(p=>p.filter(o=>o.id!==id)); }
 
+  // ── Sorting ──────────────────────────────────────────────────
+  function handleSort(col) {
+    if (sortCol === col) setSortDir(d => d==="asc"?"desc":"asc");
+    else { setSortCol(col); setSortDir("asc"); }
+  }
+
+  function sortOrders(list) {
+    return [...list].sort((a, b) => {
+      let av = a[sortCol] ?? "";
+      let bv = b[sortCol] ?? "";
+      const numCols = ["peptide","endotoxin","sterility"];
+      if (numCols.includes(sortCol)) {
+        av = parseInt(av)||0; bv = parseInt(bv)||0;
+        return sortDir==="asc" ? av-bv : bv-av;
+      }
+      av = String(av).toLowerCase(); bv = String(bv).toLowerCase();
+      return sortDir==="asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+  }
+
   const nowKey = `${new Date().getFullYear()}-${new Date().getMonth()}`;
-  const filtered = orders.filter(o => {
+
+  // Separate active vs completed
+  const activeOrders    = orders.filter(o => !complete(o));
+  const completedOrders = orders.filter(o => complete(o));
+
+  // Filter + sort for active tab
+  const filteredActive = sortOrders(activeOrders.filter(o => {
     const q = search.toLowerCase();
-    const ms = q==="" || [o.so,o.name,o.company||""].some(s=>s.toLowerCase().includes(q));
-    const mf = filter==="all" ? true
-      : filter==="complete" ? complete(o)
-      : filter==="reports"  ? (o.reportsReady&&!complete(o))
-      : !o.reportsReady;
+    const ms = q===""||[o.so,o.name,o.company||""].some(s=>s.toLowerCase().includes(q));
+    const mf = filter==="all"?true : filter==="reports"?(o.reportsReady&&!complete(o)) : !o.reportsReady;
     return ms && mf;
-  });
+  }));
+
+  // Filter + sort for completed tab
+  const filteredCompleted = sortOrders(completedOrders.filter(o => {
+    const q = search.toLowerCase();
+    return q===""||[o.so,o.name,o.company||""].some(s=>s.toLowerCase().includes(q));
+  }));
 
   function monthlySummary() {
     const m={};
@@ -162,13 +164,108 @@ export default function App() {
     return Object.entries(m).sort((a,b)=>b[0].localeCompare(a[0]));
   }
   const monthData = monthlySummary();
-  const thisMo = monthData.find(([k])=>k===nowKey)?.[1] || {peptide:0,endotoxin:0,sterility:0};
+  const thisMo = monthData.find(([k])=>k===nowKey)?.[1]||{peptide:0,endotoxin:0,sterility:0};
+
   const counts = {
-    all: orders.length,
-    pending: orders.filter(o=>!o.reportsReady).length,
-    reports: orders.filter(o=>o.reportsReady&&!complete(o)).length,
-    complete: orders.filter(complete).length,
+    active:   activeOrders.length,
+    pending:  activeOrders.filter(o=>!o.reportsReady).length,
+    reports:  activeOrders.filter(o=>o.reportsReady).length,
+    complete: completedOrders.length,
   };
+
+  // Column definitions
+  const COLS = [
+    { key:"so",          label:"SO #",    center:false, w:120, sortable:true },
+    { key:"name",        label:"Client",  center:false, w:170, sortable:true },
+    { key:"company",     label:"Company", center:false, w:155, sortable:true },
+    { key:"peptide",     label:"PEP",     center:true,  w:68,  sortable:true },
+    { key:"endotoxin",   label:"END",     center:true,  w:68,  sortable:true },
+    { key:"sterility",   label:"STE",     center:true,  w:68,  sortable:true },
+    { key:"reportsReady",label:"Reports", center:true,  w:76,  sortable:false },
+    { key:"paid",        label:"Paid",    center:true,  w:60,  sortable:false },
+    { key:"emailed",     label:"Emailed", center:true,  w:74,  sortable:false },
+    { key:"status",      label:"Status",  center:true,  w:138, sortable:false },
+    { key:"del",         label:"",        center:true,  w:36,  sortable:false },
+  ];
+
+  function renderTable(rows, showToggles=true) {
+    if (rows.length===0) return (
+      <div style={{textAlign:"center",padding:"80px 20px",color:"#1e2d40"}}>
+        <div style={{fontSize:34,marginBottom:12,opacity:0.4}}>◌</div>
+        <div style={{fontSize:14,fontWeight:500,color:"#2a3a52"}}>
+          {showToggles ? <>No orders — click <span style={{color:"#3b82f6",cursor:"pointer",fontWeight:600}} onClick={()=>setModal(true)}>+ New Order</span></> : "No completed orders yet"}
+        </div>
+      </div>
+    );
+
+    return (
+      <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:980}}>
+          <thead>
+            <tr style={{borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+              {COLS.map((col,i)=>(
+                <th key={i}
+                  onClick={col.sortable ? ()=>handleSort(col.key) : undefined}
+                  style={{ textAlign:col.center?"center":"left", width:col.w, padding:"10px 12px", fontSize:10.5, fontWeight:600, color: sortCol===col.key?"#60a5fa":"#2a3a52", textTransform:"uppercase", letterSpacing:"0.9px", whiteSpace:"nowrap", fontFamily:"'IBM Plex Mono',monospace", cursor:col.sortable?"pointer":"default", userSelect:"none", transition:"color 0.15s" }}>
+                  {col.label}
+                  {col.sortable && <SortArrow col={col.key} sortCol={sortCol} sortDir={sortDir}/>}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((order,idx)=>{
+              const st=getStatus(order);
+              return (
+                <tr key={order.id} className="row-tr" style={{borderBottom:idx===rows.length-1?"none":"1px solid rgba(255,255,255,0.04)"}}>
+                  <td style={{padding:"11px 12px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <Dot color={st.dot} size={6}/>
+                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:500,color:"#7eb3f7"}}>
+                        <InlineEdit value={order.so} onChange={v=>upd(order.id,"so",v)} mono/>
+                      </span>
+                    </div>
+                  </td>
+                  <td style={{padding:"11px 12px",fontSize:14,fontWeight:500,color:"#d4dff0"}}>
+                    <InlineEdit value={order.name} onChange={v=>upd(order.id,"name",v)}/>
+                  </td>
+                  <td style={{padding:"11px 12px",fontSize:13.5,color:"#4a5a72"}}>
+                    <InlineEdit value={order.company||""} onChange={v=>upd(order.id,"company",v)} placeholder="—"/>
+                  </td>
+                  {TYPES.map(t=>{
+                    const val=order[t.key]||0;
+                    return (
+                      <td key={t.key} style={{padding:"11px 8px",textAlign:"center"}}>
+                        <span style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", background:val>0?t.badge:"transparent", border:val>0?`1px solid ${t.border}`:"1px solid transparent", color:val>0?t.color:"#2a3548", borderRadius:6, padding:"3px 9px", minWidth:40, fontFamily:"'IBM Plex Mono',monospace", fontSize:13, fontWeight:500, transition:"all 0.2s", boxShadow:val>0?`0 0 8px ${t.glow}`:"none" }}>
+                          <InlineEdit value={String(val)} onChange={v=>upd(order.id,t.key,parseInt(v)||0)} type="number" mono/>
+                        </span>
+                      </td>
+                    );
+                  })}
+                  {[{f:"reportsReady",l:"Reports"},{f:"paid",l:"Paid"},{f:"emailed",l:"Emailed"}].map(({f,l})=>(
+                    <td key={f} style={{padding:"11px 8px",textAlign:"center"}}>
+                      <div style={{display:"flex",justifyContent:"center"}}>
+                        <Toggle value={order[f]} onChange={v=>upd(order.id,f,v)} label={l}/>
+                      </div>
+                    </td>
+                  ))}
+                  <td style={{padding:"11px 8px",textAlign:"center"}}>
+                    <span style={{ display:"inline-block", background:st.bg, color:st.color, border:`1px solid ${st.border}`, borderRadius:20, padding:"4px 12px", fontSize:11.5, fontWeight:600, whiteSpace:"nowrap" }}>{st.label}</span>
+                  </td>
+                  <td style={{padding:"11px 8px",textAlign:"center"}}>
+                    <button className="del-btn" onClick={()=>del(order.id)}
+                      style={{background:"none",border:"none",cursor:"pointer",color:"#2a3548",fontSize:13,padding:"3px 6px",borderRadius:5,transition:"color 0.15s"}}
+                      onMouseOver={e=>e.currentTarget.style.color="#f87171"}
+                      onMouseOut={e=>e.currentTarget.style.color="#2a3548"}>✕</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight:"100vh", width:"100%", background:"#0b0f1a", fontFamily:"'IBM Plex Sans', system-ui, sans-serif", color:"#c9d4e8" }}>
@@ -176,24 +273,26 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
         *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
         html, body, #root { width:100%; min-height:100vh; }
-        ::-webkit-scrollbar{width:5px;height:5px}
-        ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:#1e2d40;border-radius:99px}
-        input::placeholder{color:#2a3548;}
-        input[type=number]::-webkit-inner-spin-button{opacity:0}
-        .row-tr td { transition: background 0.15s; }
-        .row-tr:hover td { background: rgba(59,130,246,0.04) !important; }
+        ::-webkit-scrollbar{width:5px;height:5px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:#1e2d40;border-radius:99px}
+        input::placeholder{color:#2a3548;} input[type=number]::-webkit-inner-spin-button{opacity:0}
+        .row-tr td { transition:background 0.15s; }
+        .row-tr:hover td { background:rgba(59,130,246,0.04) !important; }
         .del-btn { opacity:0; transition:opacity 0.15s; }
         .row-tr:hover .del-btn { opacity:1; }
-        .tab-btn { background:none; border:none; cursor:pointer; font-family:'IBM Plex Sans',sans-serif; font-size:13.5px; font-weight:500; padding:6px 16px; border-radius:6px; transition:all 0.15s; color:#4a5a72; }
+
+        .tab-btn { background:none; border:none; cursor:pointer; font-family:'IBM Plex Sans',sans-serif; font-size:13.5px; font-weight:500; padding:6px 16px; border-radius:6px; transition:all 0.15s; color:#4a5a72; display:flex; align-items:center; gap:7px; }
         .tab-btn.active { background:rgba(59,130,246,0.15); color:#60a5fa; }
         .tab-btn:not(.active):hover { color:#7a8fa8; background:rgba(255,255,255,0.03); }
+        .tab-btn.complete-tab.active { background:rgba(52,211,153,0.12); color:#34d399; }
+
         .filter-pill { background:transparent; border:1px solid transparent; cursor:pointer; font-family:'IBM Plex Sans',sans-serif; font-size:12.5px; font-weight:500; padding:4px 11px; border-radius:6px; transition:all 0.15s; color:#4a5a72; white-space:nowrap; }
         .filter-pill.active { border-color:rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:#c9d4e8; }
         .filter-pill:not(.active):hover { color:#7a8fa8; }
+
         .add-btn { background:linear-gradient(135deg,#1d4ed8,#2563eb); color:#fff; border:none; border-radius:7px; padding:7px 18px; cursor:pointer; font-family:'IBM Plex Sans',sans-serif; font-size:13.5px; font-weight:600; box-shadow:0 2px 12px rgba(37,99,235,0.3); transition:all 0.15s; }
         .add-btn:hover { box-shadow:0 4px 18px rgba(37,99,235,0.45); transform:translateY(-1px); }
-        .modal-overlay { position:fixed; inset:0; background:rgba(5,8,16,0.75); display:flex; align-items:center; justify-content:center; z-index:200; backdrop-filter:blur(8px); }
+
+        .modal-overlay { position:fixed; inset:0; background:rgba(5,8,16,0.78); display:flex; align-items:center; justify-content:center; z-index:200; backdrop-filter:blur(8px); }
         .modal { background:#111827; border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:28px; width:90%; max-width:450px; box-shadow:0 30px 80px rgba(0,0,0,0.6); }
         .f-input { display:block; width:100%; margin-top:6px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:9px 12px; font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#c9d4e8; outline:none; transition:border-color 0.15s; }
         .f-input:focus { border-color:rgba(59,130,246,0.5); background:rgba(59,130,246,0.04); }
@@ -226,7 +325,14 @@ export default function App() {
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <div style={{ display:"flex", gap:2, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:8, padding:"3px" }}>
-            <button className={`tab-btn${tab==="orders"?" active":""}`} onClick={()=>setTab("orders")}>Orders</button>
+            <button className={`tab-btn${tab==="orders"?" active":""}`} onClick={()=>setTab("orders")}>
+              Orders
+              <span style={{ background:"rgba(255,255,255,0.08)", borderRadius:10, padding:"1px 7px", fontSize:11, fontFamily:"'IBM Plex Mono',monospace" }}>{counts.active}</span>
+            </button>
+            <button className={`tab-btn complete-tab${tab==="completed"?" active":""}`} onClick={()=>setTab("completed")}>
+              Completed
+              <span style={{ background: tab==="completed"?"rgba(52,211,153,0.15)":"rgba(255,255,255,0.08)", color: tab==="completed"?"#34d399":"inherit", borderRadius:10, padding:"1px 7px", fontSize:11, fontFamily:"'IBM Plex Mono',monospace" }}>{counts.complete}</span>
+            </button>
             <button className={`tab-btn${tab==="monthly"?" active":""}`} onClick={()=>setTab("monthly")}>Monthly</button>
           </div>
           <button className="add-btn" onClick={()=>setModal(true)}>+ New Order</button>
@@ -267,120 +373,68 @@ export default function App() {
         </div>
       )}
 
-      <div style={{ padding:"20px 28px", maxWidth:"100%", margin:"0 auto" }}>
+      <div style={{ padding:"20px 28px", width:"100%" }}>
 
-        {/* ORDERS TAB */}
+        {/* ── ACTIVE ORDERS ── */}
         {tab==="orders" && (
           <>
             <div style={{display:"flex",gap:10,marginBottom:18,alignItems:"center",flexWrap:"wrap"}}>
               <div style={{position:"relative",flex:1,minWidth:160,maxWidth:280}}>
                 <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#2a3548",fontSize:14,pointerEvents:"none"}}>⌕</span>
                 <input placeholder="Search orders…" value={search} onChange={e=>setSearch(e.target.value)}
-                  style={{ width:"100%", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:7, padding:"7px 10px 7px 30px", fontFamily:"inherit", fontSize:13.5, color:"#c9d4e8", outline:"none" }} />
+                  style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:7,padding:"7px 10px 7px 30px",fontFamily:"inherit",fontSize:13.5,color:"#c9d4e8",outline:"none"}} />
               </div>
               <div style={{display:"flex",gap:2,background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:7,padding:"3px"}}>
                 {[
-                  {k:"all",     l:`All  ${counts.all}`},
+                  {k:"all",     l:`All  ${counts.active}`},
                   {k:"pending", l:`Pending  ${counts.pending}`},
                   {k:"reports", l:`Reports Done  ${counts.reports}`},
-                  {k:"complete",l:`Complete  ${counts.complete}`},
                 ].map(f=>(
                   <button key={f.k} className={`filter-pill${filter===f.k?" active":""}`} onClick={()=>setFilter(f.k)}>{f.l}</button>
                 ))}
               </div>
               <div style={{display:"flex",gap:14,marginLeft:"auto",alignItems:"center"}}>
-                {Object.values(STATUS).map(s=>(
-                  <div key={s.label} style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{fontSize:11,color:"#2a3a52",fontFamily:"'IBM Plex Mono',monospace"}}>↑↓ click column headers to sort</span>
+                {[STATUS.pending,STATUS.reports_done].map(s=>(
+                  <div key={s.label} style={{display:"flex",alignItems:"center",gap:5}}>
                     <Dot color={s.dot} size={6}/>
                     <span style={{fontSize:11.5,color:"#3f4e63",fontWeight:500}}>{s.label}</span>
                   </div>
                 ))}
               </div>
             </div>
-
-            {filtered.length===0 ? (
-              <div style={{textAlign:"center",padding:"90px 20px",color:"#1e2d40"}}>
-                <div style={{fontSize:36,marginBottom:12,opacity:0.4}}>◌</div>
-                <div style={{fontSize:14,fontWeight:500,color:"#2a3a52"}}>No orders found</div>
-                <div style={{fontSize:13,marginTop:5,color:"#1e2d40"}}>Click&nbsp;<span style={{color:"#3b82f6",cursor:"pointer",fontWeight:600}} onClick={()=>setModal(true)}>+ New Order</span>&nbsp;to begin</div>
-              </div>
-            ) : (
-              <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",minWidth:1000}}>
-                  <thead>
-                    <tr style={{borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
-                      {[
-                        {h:"SO #",c:false,w:120},{h:"Client",c:false,w:170},{h:"Company",c:false,w:160},
-                        {h:"PEP",c:true,w:72},{h:"END",c:true,w:72},{h:"STE",c:true,w:72},
-                        {h:"Reports",c:true,w:78},{h:"Paid",c:true,w:62},{h:"Emailed",c:true,w:75},
-                        {h:"Status",c:true,w:140},{h:"",c:true,w:38},
-                      ].map((col,i)=>(
-                        <th key={i} style={{ textAlign:col.c?"center":"left", width:col.w, padding:"10px 12px", fontSize:10.5, fontWeight:600, color:"#2a3a52", textTransform:"uppercase", letterSpacing:"0.9px", whiteSpace:"nowrap", fontFamily:"'IBM Plex Mono',monospace" }}>{col.h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((order,idx)=>{
-                      const st=getStatus(order);
-                      return (
-                        <tr key={order.id} className="row-tr" style={{borderBottom:idx===filtered.length-1?"none":"1px solid rgba(255,255,255,0.04)"}}>
-                          <td style={{padding:"11px 12px"}}>
-                            <div style={{display:"flex",alignItems:"center",gap:8}}>
-                              <Dot color={st.dot} size={6}/>
-                              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:500,color:"#7eb3f7"}}>
-                                <InlineEdit value={order.so} onChange={v=>upd(order.id,"so",v)} placeholder="SO#" mono/>
-                              </span>
-                            </div>
-                          </td>
-                          <td style={{padding:"11px 12px",fontSize:14,fontWeight:500,color:"#d4dff0"}}>
-                            <InlineEdit value={order.name} onChange={v=>upd(order.id,"name",v)} placeholder="Name"/>
-                          </td>
-                          <td style={{padding:"11px 12px",fontSize:13.5,color:"#4a5a72"}}>
-                            <InlineEdit value={order.company||""} onChange={v=>upd(order.id,"company",v)} placeholder="—"/>
-                          </td>
-                          {TYPES.map(t=>{
-                            const val=order[t.key]||0;
-                            return (
-                              <td key={t.key} style={{padding:"11px 8px",textAlign:"center"}}>
-                                <span style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", background:val>0?t.badge:"transparent", border:val>0?`1px solid ${t.border}`:"1px solid transparent", color:val>0?t.color:"#2a3548", borderRadius:6, padding:"3px 9px", minWidth:40, fontFamily:"'IBM Plex Mono',monospace", fontSize:13, fontWeight:500, transition:"all 0.2s", boxShadow:val>0?`0 0 8px ${t.glow}`:"none" }}>
-                                  <InlineEdit value={String(val)} onChange={v=>upd(order.id,t.key,parseInt(v)||0)} type="number" mono/>
-                                </span>
-                              </td>
-                            );
-                          })}
-                          {[{f:"reportsReady",l:"Reports Ready"},{f:"paid",l:"Paid"},{f:"emailed",l:"Emailed"}].map(({f,l})=>(
-                            <td key={f} style={{padding:"11px 8px",textAlign:"center"}}>
-                              <div style={{display:"flex",justifyContent:"center"}}>
-                                <Toggle value={order[f]} onChange={v=>upd(order.id,f,v)} label={l}/>
-                              </div>
-                            </td>
-                          ))}
-                          <td style={{padding:"11px 8px",textAlign:"center"}}>
-                            <span style={{ display:"inline-block", background:st.bg, color:st.color, border:`1px solid ${st.border}`, borderRadius:20, padding:"4px 12px", fontSize:11.5, fontWeight:600, letterSpacing:"0.3px", whiteSpace:"nowrap" }}>{st.label}</span>
-                          </td>
-                          <td style={{padding:"11px 8px",textAlign:"center"}}>
-                            <button className="del-btn" onClick={()=>del(order.id)}
-                              style={{background:"none",border:"none",cursor:"pointer",color:"#2a3548",fontSize:13,padding:"3px 6px",borderRadius:5,transition:"color 0.15s"}}
-                              onMouseOver={e=>e.currentTarget.style.color="#f87171"}
-                              onMouseOut={e=>e.currentTarget.style.color="#2a3548"}>✕</button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {renderTable(filteredActive, true)}
           </>
         )}
 
-        {/* MONTHLY TAB */}
+        {/* ── COMPLETED ── */}
+        {tab==="completed" && (
+          <>
+            <div style={{display:"flex",gap:10,marginBottom:18,alignItems:"center",flexWrap:"wrap"}}>
+              <div style={{position:"relative",flex:1,minWidth:160,maxWidth:280}}>
+                <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#2a3548",fontSize:14,pointerEvents:"none"}}>⌕</span>
+                <input placeholder="Search completed…" value={search} onChange={e=>setSearch(e.target.value)}
+                  style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:7,padding:"7px 10px 7px 30px",fontFamily:"inherit",fontSize:13.5,color:"#c9d4e8",outline:"none"}} />
+              </div>
+              <div style={{display:"flex",gap:14,marginLeft:"auto",alignItems:"center"}}>
+                <span style={{fontSize:11,color:"#2a3a52",fontFamily:"'IBM Plex Mono',monospace"}}>↑↓ click column headers to sort</span>
+                <div style={{display:"flex",alignItems:"center",gap:5}}>
+                  <Dot color={STATUS.complete.dot} size={6}/>
+                  <span style={{fontSize:11.5,color:"#3f4e63",fontWeight:500}}>All orders here are complete</span>
+                </div>
+              </div>
+            </div>
+            {renderTable(filteredCompleted, true)}
+          </>
+        )}
+
+        {/* ── MONTHLY ── */}
         {tab==="monthly" && (
           <>
             <div style={{fontSize:14,fontWeight:600,color:"#7a8fa8",marginBottom:18,letterSpacing:"0.3px",textTransform:"uppercase",fontFamily:"'IBM Plex Mono',monospace"}}>Monthly Breakdown</div>
             {monthData.length===0 ? (
               <div style={{textAlign:"center",padding:"90px 20px",color:"#1e2d40"}}>
-                <div style={{fontSize:36,marginBottom:12,opacity:0.4}}>◌</div>
+                <div style={{fontSize:34,marginBottom:12,opacity:0.4}}>◌</div>
                 <div style={{fontSize:14,fontWeight:500,color:"#2a3a52"}}>No data yet</div>
               </div>
             ) : (
@@ -422,7 +476,7 @@ export default function App() {
                           <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
                             {TYPES.map(t=><span key={t.key} style={{fontSize:10.5,color:t.color,fontFamily:"'IBM Plex Mono',monospace"}}>{t.short} {pct(data[t.key])}%</span>)}
                           </div>
-                          <StatBar segments={TYPES.map(t=>({color:t.dot,pct:pct(data[t.key])}))}/>
+                          <StatBar segments={TYPES.map(t=>({color:t.color,pct:pct(data[t.key])}))}/>
                         </div>
                       )}
                       {data.count>0&&(
