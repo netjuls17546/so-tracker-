@@ -94,9 +94,27 @@ function StatBar({ segments }) {
   );
 }
 
+// ── localStorage helpers ──────────────────────────────────────
+const STORAGE_KEY = "so-tracker-orders-v5";
+
+function loadOrders() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch(e) {
+    return [];
+  }
+}
+
+function saveOrders(orders) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+  } catch(e) {}
+}
+// ─────────────────────────────────────────────────────────────
+
 export default function App() {
-  const [orders, setOrders]   = useState([]);
-  const [loaded, setLoaded]   = useState(false);
+  const [orders, setOrders]   = useState(() => loadOrders());
   const [tab, setTab]         = useState("orders");
   const [modal, setModal]     = useState(false);
   const [search, setSearch]   = useState("");
@@ -104,21 +122,10 @@ export default function App() {
   const blank = { so:"", name:"", company:"", peptide:"", endotoxin:"", sterility:"" };
   const [form, setForm]       = useState(blank);
 
- useEffect(() => {
-    try {
-      const saved = localStorage.getItem("so-v5");
-      if (saved) setOrders(JSON.parse(saved));
-    } catch(e) {}
-    setLoaded(true);
-  }, []);
-
+  // Save to localStorage every time orders change
   useEffect(() => {
-    if (!loaded) return;
-    try {
-      localStorage.setItem("so-v5", JSON.stringify(orders));
-    } catch(e) {}
-  }, [orders, loaded]);
-```
+    saveOrders(orders);
+  }, [orders]);
 
   function add() {
     if (!form.so || !form.name) return;
@@ -164,108 +171,47 @@ export default function App() {
   };
 
   return (
-    <div style={{ minHeight:"100vh", background:"#0b0f1a", fontFamily:"'IBM Plex Sans', system-ui, sans-serif", color:"#c9d4e8" }}>
+    <div style={{ minHeight:"100vh", width:"100%", background:"#0b0f1a", fontFamily:"'IBM Plex Sans', system-ui, sans-serif", color:"#c9d4e8" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;}
+        *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+        html, body, #root { width:100%; min-height:100vh; }
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:#1e2d40;border-radius:99px}
         input::placeholder{color:#2a3548;}
         input[type=number]::-webkit-inner-spin-button{opacity:0}
-
         .row-tr td { transition: background 0.15s; }
         .row-tr:hover td { background: rgba(59,130,246,0.04) !important; }
         .del-btn { opacity:0; transition:opacity 0.15s; }
         .row-tr:hover .del-btn { opacity:1; }
-
-        .tab-btn {
-          background:none; border:none; cursor:pointer;
-          font-family:'IBM Plex Sans',sans-serif; font-size:13.5px; font-weight:500;
-          padding:6px 16px; border-radius:6px; transition:all 0.15s; color:#4a5a72;
-        }
+        .tab-btn { background:none; border:none; cursor:pointer; font-family:'IBM Plex Sans',sans-serif; font-size:13.5px; font-weight:500; padding:6px 16px; border-radius:6px; transition:all 0.15s; color:#4a5a72; }
         .tab-btn.active { background:rgba(59,130,246,0.15); color:#60a5fa; }
         .tab-btn:not(.active):hover { color:#7a8fa8; background:rgba(255,255,255,0.03); }
-
-        .filter-pill {
-          background:transparent; border:1px solid transparent;
-          cursor:pointer; font-family:'IBM Plex Sans',sans-serif;
-          font-size:12.5px; font-weight:500; padding:4px 11px; border-radius:6px;
-          transition:all 0.15s; color:#4a5a72; white-space:nowrap;
-        }
+        .filter-pill { background:transparent; border:1px solid transparent; cursor:pointer; font-family:'IBM Plex Sans',sans-serif; font-size:12.5px; font-weight:500; padding:4px 11px; border-radius:6px; transition:all 0.15s; color:#4a5a72; white-space:nowrap; }
         .filter-pill.active { border-color:rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:#c9d4e8; }
         .filter-pill:not(.active):hover { color:#7a8fa8; }
-
-        .add-btn {
-          background: linear-gradient(135deg, #1d4ed8, #2563eb);
-          color:#fff; border:none; border-radius:7px; padding:7px 18px;
-          cursor:pointer; font-family:'IBM Plex Sans',sans-serif;
-          font-size:13.5px; font-weight:600; letter-spacing:0.1px;
-          box-shadow: 0 2px 12px rgba(37,99,235,0.3);
-          transition:all 0.15s;
-        }
+        .add-btn { background:linear-gradient(135deg,#1d4ed8,#2563eb); color:#fff; border:none; border-radius:7px; padding:7px 18px; cursor:pointer; font-family:'IBM Plex Sans',sans-serif; font-size:13.5px; font-weight:600; box-shadow:0 2px 12px rgba(37,99,235,0.3); transition:all 0.15s; }
         .add-btn:hover { box-shadow:0 4px 18px rgba(37,99,235,0.45); transform:translateY(-1px); }
-
-        .modal-overlay {
-          position:fixed; inset:0; background:rgba(5,8,16,0.75);
-          display:flex; align-items:center; justify-content:center;
-          z-index:200; backdrop-filter:blur(8px);
-        }
-        .modal {
-          background:#111827; border:1px solid rgba(255,255,255,0.08);
-          border-radius:14px; padding:28px; width:90%; max-width:450px;
-          box-shadow:0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03);
-        }
-        .f-input {
-          display:block; width:100%; margin-top:6px;
-          background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
-          border-radius:7px; padding:9px 12px; font-family:'IBM Plex Sans',sans-serif;
-          font-size:14px; color:#c9d4e8; outline:none; transition:border-color 0.15s;
-        }
+        .modal-overlay { position:fixed; inset:0; background:rgba(5,8,16,0.75); display:flex; align-items:center; justify-content:center; z-index:200; backdrop-filter:blur(8px); }
+        .modal { background:#111827; border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:28px; width:90%; max-width:450px; box-shadow:0 30px 80px rgba(0,0,0,0.6); }
+        .f-input { display:block; width:100%; margin-top:6px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:9px 12px; font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#c9d4e8; outline:none; transition:border-color 0.15s; }
         .f-input:focus { border-color:rgba(59,130,246,0.5); background:rgba(59,130,246,0.04); }
-        .btn-cancel {
-          flex:1; background:rgba(255,255,255,0.05); color:#6b7f99;
-          border:1px solid rgba(255,255,255,0.07); border-radius:7px; padding:9px;
-          cursor:pointer; font-family:'IBM Plex Sans',sans-serif; font-size:13.5px; font-weight:500;
-          transition:all 0.15s;
-        }
-        .btn-cancel:hover { background:rgba(255,255,255,0.08); color:#94a3b8; }
-        .btn-submit {
-          flex:2; background:linear-gradient(135deg,#1d4ed8,#2563eb); color:#fff;
-          border:none; border-radius:7px; padding:9px;
-          cursor:pointer; font-family:'IBM Plex Sans',sans-serif; font-size:13.5px; font-weight:600;
-          box-shadow:0 2px 10px rgba(37,99,235,0.3); transition:all 0.15s;
-        }
+        .btn-cancel { flex:1; background:rgba(255,255,255,0.05); color:#6b7f99; border:1px solid rgba(255,255,255,0.07); border-radius:7px; padding:9px; cursor:pointer; font-family:'IBM Plex Sans',sans-serif; font-size:13.5px; font-weight:500; transition:all 0.15s; }
+        .btn-cancel:hover { background:rgba(255,255,255,0.08); }
+        .btn-submit { flex:2; background:linear-gradient(135deg,#1d4ed8,#2563eb); color:#fff; border:none; border-radius:7px; padding:9px; cursor:pointer; font-family:'IBM Plex Sans',sans-serif; font-size:13.5px; font-weight:600; box-shadow:0 2px 10px rgba(37,99,235,0.3); transition:all 0.15s; }
         .btn-submit:hover { box-shadow:0 4px 16px rgba(37,99,235,0.5); }
-
-        .m-card {
-          background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.07);
-          border-radius:12px; padding:20px 22px; transition:all 0.2s;
-        }
+        .m-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:20px 22px; transition:all 0.2s; }
         .m-card:hover { background:rgba(255,255,255,0.03); border-color:rgba(255,255,255,0.12); }
         .m-card.current { border-color:rgba(59,130,246,0.3); background:rgba(59,130,246,0.04); }
       `}</style>
 
-      {/* ─── HEADER ─────────────────────────────────────────────── */}
-      <div style={{
-        background:"rgba(255,255,255,0.015)",
-        borderBottom:"1px solid rgba(255,255,255,0.07)",
-        padding:"14px 28px",
-        display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12,
-      }}>
+      {/* HEADER */}
+      <div style={{ background:"rgba(255,255,255,0.015)", borderBottom:"1px solid rgba(255,255,255,0.07)", padding:"14px 28px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-          {/* Logo mark */}
-          <div style={{
-            width:36, height:36, borderRadius:9,
-            background:"linear-gradient(135deg,rgba(37,99,235,0.3),rgba(124,58,237,0.3))",
-            border:"1px solid rgba(96,165,250,0.2)",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            fontSize:16, boxShadow:"0 0 16px rgba(37,99,235,0.15)",
-          }}>🧪</div>
+          <div style={{ width:36, height:36, borderRadius:9, background:"linear-gradient(135deg,rgba(37,99,235,0.3),rgba(124,58,237,0.3))", border:"1px solid rgba(96,165,250,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, boxShadow:"0 0 16px rgba(37,99,235,0.15)" }}>🧪</div>
           <div>
-            <div style={{ fontSize:15, fontWeight:600, color:"#e2eaf8", letterSpacing:"-0.3px" }}>
-              Sample Order Tracker
-            </div>
+            <div style={{ fontSize:15, fontWeight:600, color:"#e2eaf8", letterSpacing:"-0.3px" }}>Sample Order Tracker</div>
             <div style={{ fontSize:11.5, color:"#3f4e63", marginTop:2, fontFamily:"'IBM Plex Mono',monospace", letterSpacing:"0.3px" }}>
               {MONTHS[new Date().getMonth()].toUpperCase()}&nbsp;{new Date().getFullYear()}
               &ensp;·&ensp;
@@ -278,7 +224,6 @@ export default function App() {
             </div>
           </div>
         </div>
-
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <div style={{ display:"flex", gap:2, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:8, padding:"3px" }}>
             <button className={`tab-btn${tab==="orders"?" active":""}`} onClick={()=>setTab("orders")}>Orders</button>
@@ -288,12 +233,11 @@ export default function App() {
         </div>
       </div>
 
-      {/* ─── MODAL ──────────────────────────────────────────────── */}
+      {/* MODAL */}
       {modal && (
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&(setModal(false),setForm(blank))}>
           <div className="modal">
             <div style={{ fontSize:15, fontWeight:600, color:"#e2eaf8", marginBottom:22 }}>New Sales Order</div>
-
             {[{l:"SO Number",k:"so",ph:"SO-2025-001",req:true},{l:"Client Name",k:"name",ph:"Full name",req:true},{l:"Company",k:"company",ph:"Company name"}].map(f=>(
               <div key={f.k} style={{marginBottom:14}}>
                 <label style={{fontSize:10.5,fontWeight:600,color:"#3f4e63",textTransform:"uppercase",letterSpacing:"0.8px"}}>
@@ -304,7 +248,6 @@ export default function App() {
                   onKeyDown={e=>e.key==="Enter"&&add()} />
               </div>
             ))}
-
             <label style={{fontSize:10.5,fontWeight:600,color:"#3f4e63",textTransform:"uppercase",letterSpacing:"0.8px"}}>Sample Counts</label>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginTop:6,marginBottom:4}}>
               {TYPES.map(t=>(
@@ -316,7 +259,6 @@ export default function App() {
                 </div>
               ))}
             </div>
-
             <div style={{display:"flex",gap:8,marginTop:22}}>
               <button className="btn-cancel" onClick={()=>{setModal(false);setForm(blank);}}>Cancel</button>
               <button className="btn-submit" onClick={add}>Add Order</button>
@@ -325,31 +267,17 @@ export default function App() {
         </div>
       )}
 
-      {/* ─── BODY ───────────────────────────────────────────────── */}
-      <div style={{ padding:"20px 28px", maxWidth:1480, margin:"0 auto" }}>
+      <div style={{ padding:"20px 28px", maxWidth:"100%", margin:"0 auto" }}>
 
-        {/* ══ ORDERS ══════════════════════════════════════════════ */}
+        {/* ORDERS TAB */}
         {tab==="orders" && (
           <>
-            {/* Toolbar */}
             <div style={{display:"flex",gap:10,marginBottom:18,alignItems:"center",flexWrap:"wrap"}}>
-              {/* Search */}
               <div style={{position:"relative",flex:1,minWidth:160,maxWidth:280}}>
                 <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#2a3548",fontSize:14,pointerEvents:"none"}}>⌕</span>
                 <input placeholder="Search orders…" value={search} onChange={e=>setSearch(e.target.value)}
-                  style={{
-                    width:"100%", background:"rgba(255,255,255,0.03)",
-                    border:"1px solid rgba(255,255,255,0.07)", borderRadius:7,
-                    padding:"7px 10px 7px 30px", fontFamily:"inherit",
-                    fontSize:13.5, color:"#c9d4e8", outline:"none",
-                    transition:"border-color 0.15s",
-                  }}
-                  onFocus={e=>e.target.style.borderColor="rgba(59,130,246,0.35)"}
-                  onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.07)"}
-                />
+                  style={{ width:"100%", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:7, padding:"7px 10px 7px 30px", fontFamily:"inherit", fontSize:13.5, color:"#c9d4e8", outline:"none" }} />
               </div>
-
-              {/* Filters */}
               <div style={{display:"flex",gap:2,background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:7,padding:"3px"}}>
                 {[
                   {k:"all",     l:`All  ${counts.all}`},
@@ -360,8 +288,6 @@ export default function App() {
                   <button key={f.k} className={`filter-pill${filter===f.k?" active":""}`} onClick={()=>setFilter(f.k)}>{f.l}</button>
                 ))}
               </div>
-
-              {/* Legend */}
               <div style={{display:"flex",gap:14,marginLeft:"auto",alignItems:"center"}}>
                 {Object.values(STATUS).map(s=>(
                   <div key={s.label} style={{display:"flex",alignItems:"center",gap:6}}>
@@ -372,54 +298,32 @@ export default function App() {
               </div>
             </div>
 
-            {/* Empty */}
             {filtered.length===0 ? (
               <div style={{textAlign:"center",padding:"90px 20px",color:"#1e2d40"}}>
                 <div style={{fontSize:36,marginBottom:12,opacity:0.4}}>◌</div>
                 <div style={{fontSize:14,fontWeight:500,color:"#2a3a52"}}>No orders found</div>
-                <div style={{fontSize:13,marginTop:5,color:"#1e2d40"}}>
-                  Click&nbsp;<span style={{color:"#3b82f6",cursor:"pointer",fontWeight:600}} onClick={()=>setModal(true)}>+ New Order</span>&nbsp;to begin
-                </div>
+                <div style={{fontSize:13,marginTop:5,color:"#1e2d40"}}>Click&nbsp;<span style={{color:"#3b82f6",cursor:"pointer",fontWeight:600}} onClick={()=>setModal(true)}>+ New Order</span>&nbsp;to begin</div>
               </div>
             ) : (
-              /* Table */
               <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",minWidth:1000}}>
                   <thead>
                     <tr style={{borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
                       {[
-                        {h:"SO #",    c:false, w:120},
-                        {h:"Client",  c:false, w:170},
-                        {h:"Company", c:false, w:160},
-                        {h:"PEP",     c:true,  w:72},
-                        {h:"END",     c:true,  w:72},
-                        {h:"STE",     c:true,  w:72},
-                        {h:"Reports", c:true,  w:78},
-                        {h:"Paid",    c:true,  w:62},
-                        {h:"Emailed", c:true,  w:75},
-                        {h:"Status",  c:true,  w:140},
-                        {h:"",        c:true,  w:38},
+                        {h:"SO #",c:false,w:120},{h:"Client",c:false,w:170},{h:"Company",c:false,w:160},
+                        {h:"PEP",c:true,w:72},{h:"END",c:true,w:72},{h:"STE",c:true,w:72},
+                        {h:"Reports",c:true,w:78},{h:"Paid",c:true,w:62},{h:"Emailed",c:true,w:75},
+                        {h:"Status",c:true,w:140},{h:"",c:true,w:38},
                       ].map((col,i)=>(
-                        <th key={i} style={{
-                          textAlign:col.c?"center":"left", width:col.w,
-                          padding:"10px 12px", fontSize:10.5,
-                          fontWeight:600, color:"#2a3a52",
-                          textTransform:"uppercase", letterSpacing:"0.9px",
-                          whiteSpace:"nowrap",
-                          fontFamily:"'IBM Plex Mono',monospace",
-                        }}>{col.h}</th>
+                        <th key={i} style={{ textAlign:col.c?"center":"left", width:col.w, padding:"10px 12px", fontSize:10.5, fontWeight:600, color:"#2a3a52", textTransform:"uppercase", letterSpacing:"0.9px", whiteSpace:"nowrap", fontFamily:"'IBM Plex Mono',monospace" }}>{col.h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map((order,idx)=>{
                       const st=getStatus(order);
-                      const isLast=idx===filtered.length-1;
                       return (
-                        <tr key={order.id} className="row-tr"
-                          style={{borderBottom:isLast?"none":"1px solid rgba(255,255,255,0.04)"}}>
-
-                          {/* SO# */}
+                        <tr key={order.id} className="row-tr" style={{borderBottom:idx===filtered.length-1?"none":"1px solid rgba(255,255,255,0.04)"}}>
                           <td style={{padding:"11px 12px"}}>
                             <div style={{display:"flex",alignItems:"center",gap:8}}>
                               <Dot color={st.dot} size={6}/>
@@ -428,40 +332,22 @@ export default function App() {
                               </span>
                             </div>
                           </td>
-
-                          {/* Name */}
                           <td style={{padding:"11px 12px",fontSize:14,fontWeight:500,color:"#d4dff0"}}>
                             <InlineEdit value={order.name} onChange={v=>upd(order.id,"name",v)} placeholder="Name"/>
                           </td>
-
-                          {/* Company */}
                           <td style={{padding:"11px 12px",fontSize:13.5,color:"#4a5a72"}}>
                             <InlineEdit value={order.company||""} onChange={v=>upd(order.id,"company",v)} placeholder="—"/>
                           </td>
-
-                          {/* Sample counts */}
                           {TYPES.map(t=>{
                             const val=order[t.key]||0;
                             return (
                               <td key={t.key} style={{padding:"11px 8px",textAlign:"center"}}>
-                                <span style={{
-                                  display:"inline-flex", alignItems:"center", justifyContent:"center",
-                                  background: val>0 ? t.badge : "transparent",
-                                  border: val>0 ? `1px solid ${t.border}` : "1px solid transparent",
-                                  color: val>0 ? t.color : "#2a3548",
-                                  borderRadius:6, padding:"3px 9px", minWidth:40,
-                                  fontFamily:"'IBM Plex Mono',monospace",
-                                  fontSize:13, fontWeight:500,
-                                  transition:"all 0.2s",
-                                  boxShadow: val>0 ? `0 0 8px ${t.glow}` : "none",
-                                }}>
+                                <span style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", background:val>0?t.badge:"transparent", border:val>0?`1px solid ${t.border}`:"1px solid transparent", color:val>0?t.color:"#2a3548", borderRadius:6, padding:"3px 9px", minWidth:40, fontFamily:"'IBM Plex Mono',monospace", fontSize:13, fontWeight:500, transition:"all 0.2s", boxShadow:val>0?`0 0 8px ${t.glow}`:"none" }}>
                                   <InlineEdit value={String(val)} onChange={v=>upd(order.id,t.key,parseInt(v)||0)} type="number" mono/>
                                 </span>
                               </td>
                             );
                           })}
-
-                          {/* Toggles */}
                           {[{f:"reportsReady",l:"Reports Ready"},{f:"paid",l:"Paid"},{f:"emailed",l:"Emailed"}].map(({f,l})=>(
                             <td key={f} style={{padding:"11px 8px",textAlign:"center"}}>
                               <div style={{display:"flex",justifyContent:"center"}}>
@@ -469,19 +355,9 @@ export default function App() {
                               </div>
                             </td>
                           ))}
-
-                          {/* Status */}
                           <td style={{padding:"11px 8px",textAlign:"center"}}>
-                            <span style={{
-                              display:"inline-block",
-                              background:st.bg, color:st.color,
-                              border:`1px solid ${st.border}`,
-                              borderRadius:20, padding:"4px 12px",
-                              fontSize:11.5, fontWeight:600, letterSpacing:"0.3px", whiteSpace:"nowrap",
-                            }}>{st.label}</span>
+                            <span style={{ display:"inline-block", background:st.bg, color:st.color, border:`1px solid ${st.border}`, borderRadius:20, padding:"4px 12px", fontSize:11.5, fontWeight:600, letterSpacing:"0.3px", whiteSpace:"nowrap" }}>{st.label}</span>
                           </td>
-
-                          {/* Delete */}
                           <td style={{padding:"11px 8px",textAlign:"center"}}>
                             <button className="del-btn" onClick={()=>del(order.id)}
                               style={{background:"none",border:"none",cursor:"pointer",color:"#2a3548",fontSize:13,padding:"3px 6px",borderRadius:5,transition:"color 0.15s"}}
@@ -498,13 +374,10 @@ export default function App() {
           </>
         )}
 
-        {/* ══ MONTHLY ═════════════════════════════════════════════ */}
+        {/* MONTHLY TAB */}
         {tab==="monthly" && (
           <>
-            <div style={{fontSize:14,fontWeight:600,color:"#7a8fa8",marginBottom:18,letterSpacing:"0.3px",textTransform:"uppercase",fontFamily:"'IBM Plex Mono',monospace"}}>
-              Monthly Breakdown
-            </div>
-
+            <div style={{fontSize:14,fontWeight:600,color:"#7a8fa8",marginBottom:18,letterSpacing:"0.3px",textTransform:"uppercase",fontFamily:"'IBM Plex Mono',monospace"}}>Monthly Breakdown</div>
             {monthData.length===0 ? (
               <div style={{textAlign:"center",padding:"90px 20px",color:"#1e2d40"}}>
                 <div style={{fontSize:36,marginBottom:12,opacity:0.4}}>◌</div>
@@ -517,39 +390,23 @@ export default function App() {
                   const total=TYPES.reduce((s,t)=>s+(data[t.key]||0),0);
                   const pct=v=>total>0?Math.round((v/total)*100):0;
                   const compPct=data.count>0?Math.round((data.complete/data.count)*100):0;
-
                   return (
                     <div key={key} className={`m-card${isCur?" current":""}`}>
-                      {/* Header */}
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
                         <span style={{fontSize:15,fontWeight:600,color:"#d4dff0",letterSpacing:"-0.3px"}}>{getMonthLabel(key)}</span>
                         <div style={{display:"flex",gap:7,alignItems:"center"}}>
-                          {isCur && (
-                            <span style={{
-                              background:"rgba(59,130,246,0.15)",color:"#60a5fa",
-                              border:"1px solid rgba(96,165,250,0.25)",
-                              borderRadius:20,padding:"2px 9px",fontSize:9.5,fontWeight:700,letterSpacing:"0.8px",
-                            }}>NOW</span>
-                          )}
+                          {isCur&&<span style={{background:"rgba(59,130,246,0.15)",color:"#60a5fa",border:"1px solid rgba(96,165,250,0.25)",borderRadius:20,padding:"2px 9px",fontSize:9.5,fontWeight:700,letterSpacing:"0.8px"}}>NOW</span>}
                           <span style={{fontSize:11,color:"#2a3a52",fontFamily:"'IBM Plex Mono',monospace"}}>{data.count} orders</span>
                         </div>
                       </div>
-
-                      {/* Sample type tiles */}
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
                         {TYPES.map(t=>(
-                          <div key={t.key} style={{
-                            background:t.badge, border:`1px solid ${t.border}`,
-                            borderRadius:9, padding:"13px 8px", textAlign:"center",
-                            boxShadow:`0 0 12px ${t.glow}`,
-                          }}>
+                          <div key={t.key} style={{background:t.badge,border:`1px solid ${t.border}`,borderRadius:9,padding:"13px 8px",textAlign:"center",boxShadow:`0 0 12px ${t.glow}`}}>
                             <div style={{fontSize:24,fontWeight:600,color:t.color,fontFamily:"'IBM Plex Mono',monospace",lineHeight:1}}>{data[t.key]}</div>
                             <div style={{fontSize:9,color:t.color,opacity:0.6,marginTop:5,fontWeight:700,letterSpacing:"1.2px"}}>{t.short}</div>
                           </div>
                         ))}
                       </div>
-
-                      {/* Total / Done */}
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
                         <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,padding:"10px",textAlign:"center"}}>
                           <div style={{fontSize:20,fontWeight:600,color:"#c9d4e8",fontFamily:"'IBM Plex Mono',monospace"}}>{total}</div>
@@ -560,21 +417,15 @@ export default function App() {
                           <div style={{fontSize:9,color:"#34d399",opacity:0.6,fontWeight:700,letterSpacing:"1px",marginTop:3}}>DONE</div>
                         </div>
                       </div>
-
-                      {/* Sample mix bar */}
-                      {total>0 && (
+                      {total>0&&(
                         <div style={{marginBottom:12}}>
                           <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                            {TYPES.map(t=>(
-                              <span key={t.key} style={{fontSize:10.5,color:t.color,fontFamily:"'IBM Plex Mono',monospace"}}>{t.short} {pct(data[t.key])}%</span>
-                            ))}
+                            {TYPES.map(t=><span key={t.key} style={{fontSize:10.5,color:t.color,fontFamily:"'IBM Plex Mono',monospace"}}>{t.short} {pct(data[t.key])}%</span>)}
                           </div>
-                          <StatBar segments={TYPES.map(t=>({color:t.dot, pct:pct(data[t.key])}))}/>
+                          <StatBar segments={TYPES.map(t=>({color:t.dot,pct:pct(data[t.key])}))}/>
                         </div>
                       )}
-
-                      {/* Completion */}
-                      {data.count>0 && (
+                      {data.count>0&&(
                         <div>
                           <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
                             <span style={{fontSize:11,color:"#2a3a52",fontWeight:500}}>Completion</span>
