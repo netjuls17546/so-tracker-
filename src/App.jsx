@@ -24,56 +24,6 @@ function getStatus(o) {
   return STATUS.pending;
 }
 
-// ── SVG Bar Chart ───────────────────────────────────────────────
-function BarChart({ data, height=160 }) {
-  if (!data.length) return null;
-  const allTotals = data.map(d =>
-    (d.finnrick.peptide+d.finnrick.endotoxin+d.finnrick.sterility) +
-    (d.other.peptide+d.other.endotoxin+d.other.sterility)
-  );
-  const maxVal = Math.max(...allTotals, 1);
-
-  return (
-    <div style={{ width:"100%", overflowX:"auto" }}>
-      <div style={{ minWidth: Math.max(data.length * 64, 300), paddingLeft:36 }}>
-        <div style={{ position:"relative", height }}>
-          {/* Grid lines */}
-          {[0,25,50,75,100].map(pct => (
-            <div key={pct} style={{ position:"absolute", bottom:`${pct}%`, left:0, right:0, borderTop:"1px solid rgba(255,255,255,0.04)", display:"flex", alignItems:"center" }}>
-              <span style={{ position:"absolute", left:-34, fontSize:9, color:"#2a3a52", fontFamily:"'IBM Plex Mono',monospace", transform:"translateY(50%)" }}>
-                {Math.round(maxVal * pct / 100)}
-              </span>
-            </div>
-          ))}
-          {/* Bars */}
-          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"flex-end", gap:8, padding:"0 4px" }}>
-            {data.map((d,i) => {
-              const finn = d.finnrick.peptide+d.finnrick.endotoxin+d.finnrick.sterility;
-              const other = d.other.peptide+d.other.endotoxin+d.other.sterility;
-              const total = finn + other;
-              const totalPct = (total / maxVal) * 100;
-              return (
-                <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"flex-end", height:"100%" }}>
-                  <div style={{ width:"100%", height:`${totalPct}%`, display:"flex", flexDirection:"column", justifyContent:"flex-end", borderRadius:"4px 4px 0 0", overflow:"hidden", minHeight:total>0?2:0 }}>
-                    {other > 0 && <div style={{ flex:other, background:"rgba(96,165,250,0.45)" }}/>}
-                    {finn  > 0 && <div style={{ flex:finn,  background:"linear-gradient(180deg,#6366f1,#8b5cf6)", boxShadow:"0 0 8px rgba(99,102,241,0.4)" }}/>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        {/* X labels */}
-        <div style={{ display:"flex", gap:8, padding:"5px 4px 0" }}>
-          {data.map((d,i) => (
-            <div key={i} style={{ flex:1, textAlign:"center", fontSize:9.5, color:"#3f4e63", fontFamily:"'IBM Plex Mono',monospace" }}>{d.label}</div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function SortArrow({ col, sortCol, sortDir }) {
   if (sortCol !== col) return <span style={{ opacity:0.2, fontSize:9, marginLeft:3 }}>⇅</span>;
   return <span style={{ fontSize:9, marginLeft:3, color:"#60a5fa" }}>{sortDir==="asc"?"↑":"↓"}</span>;
@@ -86,7 +36,7 @@ function InlineEdit({ value, onChange, type="text", placeholder="—", mono=fals
   useEffect(() => { if (on && ref.current) ref.current.select(); }, [on]);
   function commit() {
     setOn(false);
-    const v = type==="number" ? (parseInt(draft)||0) : draft;
+    const v = type==="number" ? (parseFloat(draft)||0) : draft;
     if (String(v) !== String(value)) onChange(v);
   }
   const ff = mono ? "'IBM Plex Mono',monospace" : "inherit";
@@ -94,7 +44,7 @@ function InlineEdit({ value, onChange, type="text", placeholder="—", mono=fals
     <input ref={ref} autoFocus type={type} value={draft}
       onChange={e => setDraft(e.target.value)} onBlur={commit}
       onKeyDown={e => { if(e.key==="Enter") commit(); if(e.key==="Escape"){setDraft(String(value));setOn(false);} }}
-      style={{ border:"none", borderBottom:"1.5px solid #3b82f6", outline:"none", background:"transparent", fontFamily:ff, fontSize:"inherit", color:"inherit", padding:"0 2px", width:type==="number"?46:"100%", minWidth:type==="number"?46:60 }}
+      style={{ border:"none", borderBottom:"1.5px solid #3b82f6", outline:"none", background:"transparent", fontFamily:ff, fontSize:"inherit", color:"inherit", padding:"0 2px", width:type==="number"?56:"100%", minWidth:type==="number"?56:60 }}
     />
   );
   const empty = value==null||value===""|| (type==="number"&&(value===0||value==="0"));
@@ -119,30 +69,30 @@ function Dot({ color, size=7 }) {
   return <span style={{ display:"inline-block", width:size, height:size, borderRadius:"50%", background:color, flexShrink:0, boxShadow:`0 0 6px ${color}88` }} />;
 }
 
-function StatBar({ segments }) {
-  return (
-    <div style={{ height:3, borderRadius:99, overflow:"hidden", display:"flex", background:"rgba(255,255,255,0.04)" }}>
-      {segments.map((s,i) => <div key={i} style={{ height:"100%", background:s.color, width:`${s.pct}%`, transition:"width 0.6s ease" }}/>)}
-    </div>
-  );
-}
+function fmt(n) { return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2}).format(n); }
 
-const STORAGE_KEY = "so-tracker-orders-v7";
-function loadOrders() { try { const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):[]; } catch(e){return[];} }
-function saveOrders(o) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(o)); } catch(e){} }
+const STORAGE_KEY  = "so-tracker-orders-v8";
+const PRICING_KEY  = "so-tracker-pricing-v1";
+
+function load(key, fallback) { try { const r=localStorage.getItem(key); return r?JSON.parse(r):fallback; } catch(e){return fallback;} }
+function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){} }
+
+const DEFAULT_PRICES = { finnrick:0, peptide:0, endotoxin:0, sterility:0 };
 
 export default function App() {
-  const [orders, setOrders] = useState(() => loadOrders());
-  const [tab, setTab]       = useState("orders");
-  const [modal, setModal]   = useState(false);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [orders,  setOrders]  = useState(() => load(STORAGE_KEY, []));
+  const [prices,  setPrices]  = useState(() => load(PRICING_KEY, DEFAULT_PRICES));
+  const [tab,     setTab]     = useState("orders");
+  const [modal,   setModal]   = useState(false);
+  const [search,  setSearch]  = useState("");
+  const [filter,  setFilter]  = useState("all");
   const [sortCol, setSortCol] = useState("createdAt");
   const [sortDir, setSortDir] = useState("desc");
   const blank = { so:SO_PREFIX, name:"", company:"", peptide:"", endotoxin:"", sterility:"" };
   const [form, setForm] = useState(blank);
 
-  useEffect(() => { saveOrders(orders); }, [orders]);
+  useEffect(() => { save(STORAGE_KEY, orders); }, [orders]);
+  useEffect(() => { save(PRICING_KEY, prices); }, [prices]);
 
   function add() {
     if (!form.so || !form.name) return;
@@ -185,25 +135,41 @@ export default function App() {
     return q===""||[o.so,o.name,o.company||""].some(s=>s.toLowerCase().includes(q));
   }));
 
+  // ── Monthly summary ─────────────────────────────────────────
   function monthlySummary() {
     const m={};
     orders.forEach(o=>{
       const k=gMonthKey(o.createdAt);
-      if(!m[k]) m[k]={ finnrick:{peptide:0,endotoxin:0,sterility:0}, other:{peptide:0,endotoxin:0,sterility:0}, count:0, complete:0 };
-      const grp = isFinnrick(o) ? "finnrick" : "other";
-      TYPES.forEach(t=>{ m[k][grp][t.key]+=o[t.key]||0; });
+      if(!m[k]) m[k]={ finnrick:0, peptide:0, endotoxin:0, sterility:0, count:0, complete:0 };
+      if (isFinnrick(o)) {
+        m[k].finnrick += (o.peptide||0)+(o.endotoxin||0)+(o.sterility||0);
+      } else {
+        m[k].peptide   += o.peptide||0;
+        m[k].endotoxin += o.endotoxin||0;
+        m[k].sterility += o.sterility||0;
+      }
       m[k].count++; if(complete(o)) m[k].complete++;
     });
     return Object.entries(m).sort((a,b)=>a[0].localeCompare(b[0]));
   }
-  const monthData = monthlySummary();
+  const monthData    = monthlySummary();
   const monthDataDesc = [...monthData].reverse();
-  const thisMo = monthData.find(([k])=>k===nowKey)?.[1]||{finnrick:{peptide:0,endotoxin:0,sterility:0},other:{peptide:0,endotoxin:0,sterility:0}};
-  const thisTotal = TYPES.reduce((s,t)=>s+(thisMo.finnrick[t.key]||0)+(thisMo.other[t.key]||0),0);
+  const thisMo = monthData.find(([k])=>k===nowKey)?.[1] || { finnrick:0, peptide:0, endotoxin:0, sterility:0, count:0, complete:0 };
 
-  const counts = { active:activeOrders.length, pending:activeOrders.filter(o=>!o.reportsReady).length, reports:activeOrders.filter(o=>o.reportsReady).length, complete:completedOrders.length };
+  // ── Revenue calculation ─────────────────────────────────────
+  function calcRevenue(data) {
+    return (data.finnrick  * (prices.finnrick  || 0)) +
+           (data.peptide   * (prices.peptide   || 0)) +
+           (data.endotoxin * (prices.endotoxin || 0)) +
+           (data.sterility * (prices.sterility || 0));
+  }
 
-  const chartData = monthData.slice(-6).map(([k,d])=>({ label:gMonthLabel(k).split(" ")[0], finnrick:d.finnrick, other:d.other }));
+  const counts = {
+    active:   activeOrders.length,
+    pending:  activeOrders.filter(o=>!o.reportsReady).length,
+    reports:  activeOrders.filter(o=>o.reportsReady).length,
+    complete: completedOrders.length,
+  };
 
   const COLS = [
     {key:"so",c:false,w:130,s:true,l:"SO #"},
@@ -293,6 +259,14 @@ export default function App() {
     );
   }
 
+  // ── 4 main counters ─────────────────────────────────────────
+  const COUNTERS = [
+    { key:"finnrick",  label:"Finnrick",        sublabel:"All sample types", color:"#a78bfa", glow:"rgba(167,139,250,0.2)",  bg:"rgba(99,102,241,0.08)",  border:"rgba(99,102,241,0.2)"  },
+    { key:"peptide",   label:"Other Peptides",  sublabel:"Non-Finnrick",     color:"#94a3b8", glow:"rgba(148,163,184,0.15)", bg:"rgba(148,163,184,0.07)", border:"rgba(148,163,184,0.18)" },
+    { key:"endotoxin", label:"Endotoxin",       sublabel:"Non-Finnrick",     color:"#60a5fa", glow:"rgba(96,165,250,0.2)",   bg:"rgba(59,130,246,0.08)",  border:"rgba(96,165,250,0.2)"  },
+    { key:"sterility", label:"Sterility",       sublabel:"Non-Finnrick",     color:"#a78bfa", glow:"rgba(167,139,250,0.2)",  bg:"rgba(139,92,246,0.08)",  border:"rgba(139,92,246,0.2)"  },
+  ];
+
   return (
     <div style={{ minHeight:"100vh", width:"100%", background:"#0b0f1a", fontFamily:"'IBM Plex Sans',system-ui,sans-serif", color:"#c9d4e8" }}>
       <style>{`
@@ -307,8 +281,9 @@ export default function App() {
         .row-tr:hover .del-btn{opacity:1;}
         .tab-btn{background:none;border:none;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:13.5px;font-weight:500;padding:6px 16px;border-radius:6px;transition:all 0.15s;color:#4a5a72;display:flex;align-items:center;gap:7px;}
         .tab-btn.active{background:rgba(59,130,246,0.15);color:#60a5fa;}
-        .tab-btn.done.active{background:rgba(52,211,153,0.12);color:#34d399;}
-        .tab-btn.monthly.active{background:rgba(167,139,250,0.12);color:#a78bfa;}
+        .tab-btn.t-done.active{background:rgba(52,211,153,0.12);color:#34d399;}
+        .tab-btn.t-monthly.active{background:rgba(167,139,250,0.1);color:#a78bfa;}
+        .tab-btn.t-revenue.active{background:rgba(251,191,36,0.1);color:#fbbf24;}
         .tab-btn:not(.active):hover{color:#7a8fa8;background:rgba(255,255,255,0.03);}
         .filter-pill{background:transparent;border:1px solid transparent;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;font-weight:500;padding:4px 11px;border-radius:6px;transition:all 0.15s;color:#4a5a72;white-space:nowrap;}
         .filter-pill.active{border-color:rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#c9d4e8;}
@@ -321,6 +296,8 @@ export default function App() {
         .f-input:focus{border-color:rgba(59,130,246,0.5);background:rgba(59,130,246,0.04);}
         .btn-cancel{flex:1;background:rgba(255,255,255,0.05);color:#6b7f99;border:1px solid rgba(255,255,255,0.07);border-radius:7px;padding:9px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:13.5px;font-weight:500;}
         .btn-submit{flex:2;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:7px;padding:9px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:13.5px;font-weight:600;}
+        .price-input{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 12px;font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:500;color:#e2eaf8;outline:none;width:100%;transition:border-color 0.15s;margin-top:8px;}
+        .price-input:focus{border-color:rgba(251,191,36,0.4);background:rgba(251,191,36,0.04);}
       `}</style>
 
       {/* HEADER */}
@@ -331,8 +308,10 @@ export default function App() {
             <div style={{ fontSize:15, fontWeight:600, color:"#e2eaf8", letterSpacing:"-0.3px" }}>Sample Order Tracker</div>
             <div style={{ fontSize:11.5, color:"#3f4e63", marginTop:2, fontFamily:"'IBM Plex Mono',monospace" }}>
               {MONTHS[new Date().getMonth()].toUpperCase()}&nbsp;{new Date().getFullYear()}
-              &ensp;·&ensp;Total&nbsp;{thisTotal}
-              &ensp;·&ensp;{TYPES.map((t,i)=><span key={t.key} style={{color:t.color}}>{i>0&&<span style={{color:"#2a3548"}}>&ensp;</span>}{t.short}&nbsp;{(thisMo.finnrick[t.key]||0)+(thisMo.other[t.key]||0)}</span>)}
+              &ensp;·&ensp;<span style={{color:"#a78bfa"}}>Finnrick&nbsp;{thisMo.finnrick}</span>
+              &ensp;·&ensp;<span style={{color:"#94a3b8"}}>PEP&nbsp;{thisMo.peptide}</span>
+              &ensp;·&ensp;<span style={{color:"#60a5fa"}}>END&nbsp;{thisMo.endotoxin}</span>
+              &ensp;·&ensp;<span style={{color:"#c084fc"}}>STE&nbsp;{thisMo.sterility}</span>
             </div>
           </div>
         </div>
@@ -341,10 +320,11 @@ export default function App() {
             <button className={`tab-btn${tab==="orders"?" active":""}`} onClick={()=>setTab("orders")}>
               Orders <span style={{ background:"rgba(255,255,255,0.08)", borderRadius:10, padding:"1px 7px", fontSize:11, fontFamily:"'IBM Plex Mono',monospace" }}>{counts.active}</span>
             </button>
-            <button className={`tab-btn done${tab==="completed"?" active":""}`} onClick={()=>setTab("completed")}>
+            <button className={`tab-btn t-done${tab==="completed"?" active":""}`} onClick={()=>setTab("completed")}>
               Completed <span style={{ background:tab==="completed"?"rgba(52,211,153,0.15)":"rgba(255,255,255,0.08)", color:tab==="completed"?"#34d399":"inherit", borderRadius:10, padding:"1px 7px", fontSize:11, fontFamily:"'IBM Plex Mono',monospace" }}>{counts.complete}</span>
             </button>
-            <button className={`tab-btn monthly${tab==="monthly"?" active":""}`} onClick={()=>setTab("monthly")}>Monthly</button>
+            <button className={`tab-btn t-monthly${tab==="monthly"?" active":""}`} onClick={()=>setTab("monthly")}>Monthly</button>
+            <button className={`tab-btn t-revenue${tab==="revenue"?" active":""}`} onClick={()=>setTab("revenue")}>💰 Revenue</button>
           </div>
           <button className="add-btn" onClick={()=>setModal(true)}>+ New Order</button>
         </div>
@@ -382,7 +362,7 @@ export default function App() {
 
       <div style={{ padding:"20px 28px", width:"100%" }}>
 
-        {/* ORDERS */}
+        {/* ── ORDERS ── */}
         {tab==="orders" && (
           <>
             <div style={{display:"flex",gap:10,marginBottom:18,alignItems:"center",flexWrap:"wrap"}}>
@@ -402,13 +382,13 @@ export default function App() {
           </>
         )}
 
-        {/* COMPLETED */}
+        {/* ── COMPLETED ── */}
         {tab==="completed" && (
           <>
             <div style={{display:"flex",gap:10,marginBottom:18,alignItems:"center",flexWrap:"wrap"}}>
               <div style={{position:"relative",flex:1,minWidth:160,maxWidth:280}}>
                 <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#2a3548",fontSize:14,pointerEvents:"none"}}>⌕</span>
-                <input placeholder="Search completed…" value={search} onChange={e=>setSearch(e.target.value)}
+                <input placeholder="Search…" value={search} onChange={e=>setSearch(e.target.value)}
                   style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:7,padding:"7px 10px 7px 30px",fontFamily:"inherit",fontSize:13.5,color:"#c9d4e8",outline:"none"}} />
               </div>
               <span style={{fontSize:11,color:"#2a3a52",marginLeft:"auto",fontFamily:"'IBM Plex Mono',monospace"}}>click column headers to sort</span>
@@ -417,52 +397,25 @@ export default function App() {
           </>
         )}
 
-        {/* MONTHLY */}
+        {/* ── MONTHLY ── */}
         {tab==="monthly" && (
           <>
-            {/* Bar chart */}
-            {chartData.length > 0 && (
-              <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:12, padding:"20px 22px", marginBottom:20 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, flexWrap:"wrap", gap:8 }}>
-                  <div>
-                    <div style={{ fontSize:13, fontWeight:600, color:"#d4dff0" }}>Sample Volume — Last 6 Months</div>
-                    <div style={{ fontSize:11, color:"#3f4e63", marginTop:2 }}>Stacked: Finnrick (bottom) vs. Other clients (top)</div>
-                  </div>
-                  <div style={{ display:"flex", gap:12, alignItems:"center" }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                      <div style={{ width:10, height:10, borderRadius:2, background:"linear-gradient(135deg,#6366f1,#8b5cf6)" }}/>
-                      <span style={{ fontSize:11, color:"#a78bfa" }}>Finnrick</span>
-                    </div>
-                    <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                      <div style={{ width:10, height:10, borderRadius:2, background:"rgba(96,165,250,0.45)" }}/>
-                      <span style={{ fontSize:11, color:"#60a5fa" }}>Other</span>
-                    </div>
-                  </div>
-                </div>
-                <BarChart data={chartData} height={160}/>
-              </div>
-            )}
-
-            {/* Monthly cards */}
-            <div style={{ fontSize:11, fontWeight:600, color:"#3f4e63", marginBottom:14, letterSpacing:"0.8px", textTransform:"uppercase", fontFamily:"'IBM Plex Mono',monospace" }}>All Months</div>
+            <div style={{ fontSize:11, fontWeight:600, color:"#3f4e63", marginBottom:16, letterSpacing:"0.8px", textTransform:"uppercase", fontFamily:"'IBM Plex Mono',monospace" }}>Monthly Breakdown</div>
             {monthDataDesc.length===0 ? (
               <div style={{textAlign:"center",padding:"60px 20px",color:"#1e2d40"}}>
                 <div style={{fontSize:32,marginBottom:10,opacity:0.35}}>◌</div>
                 <div style={{fontSize:13.5,fontWeight:500,color:"#2a3a52"}}>No data yet</div>
               </div>
             ) : (
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:14}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:14}}>
                 {monthDataDesc.map(([key,data])=>{
                   const isCur=key===nowKey;
-                  const finnTotal = TYPES.reduce((s,t)=>s+(data.finnrick[t.key]||0),0);
-                  const otherTotal = TYPES.reduce((s,t)=>s+(data.other[t.key]||0),0);
-                  const total = finnTotal + otherTotal;
-                  const pct=v=>total>0?Math.round((v/total)*100):0;
+                  const revenue=calcRevenue(data);
                   const compPct=data.count>0?Math.round((data.complete/data.count)*100):0;
                   return (
                     <div key={key} style={{ background:isCur?"rgba(59,130,246,0.04)":"rgba(255,255,255,0.02)", border:`1px solid ${isCur?"rgba(59,130,246,0.3)":"rgba(255,255,255,0.07)"}`, borderRadius:12, padding:"20px 22px" }}>
                       {/* Header */}
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
                         <span style={{ fontSize:15, fontWeight:600, color:"#d4dff0" }}>{getMonthLabel(key)}</span>
                         <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                           {isCur&&<span style={{ background:"rgba(59,130,246,0.15)", color:"#60a5fa", border:"1px solid rgba(96,165,250,0.25)", borderRadius:20, padding:"2px 9px", fontSize:9.5, fontWeight:700, letterSpacing:"0.8px" }}>NOW</span>}
@@ -470,79 +423,144 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* ── Finnrick vs Other counters ── */}
+                      {/* ── THE 4 COUNTERS ── */}
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
-                        {/* Finnrick */}
-                        <div style={{ background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:10, padding:"12px 12px 10px" }}>
-                          <div style={{ fontSize:10, fontWeight:700, color:"#a78bfa", letterSpacing:"0.8px", marginBottom:8, fontFamily:"'IBM Plex Mono',monospace" }}>FINNRICK</div>
-                          <div style={{ fontSize:24, fontWeight:600, color:"#a78bfa", fontFamily:"'IBM Plex Mono',monospace", lineHeight:1, marginBottom:8 }}>{finnTotal}</div>
-                          <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
-                            {TYPES.map(t=>(
-                              <div key={t.key} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                                <span style={{ fontSize:9.5, color:"#4a3a72", fontFamily:"'IBM Plex Mono',monospace" }}>{t.short}</span>
-                                <span style={{ fontSize:11, color:"#7c6aad", fontFamily:"'IBM Plex Mono',monospace", fontWeight:600 }}>{data.finnrick[t.key]||0}</span>
-                              </div>
-                            ))}
+                        {COUNTERS.map(c => (
+                          <div key={c.key} style={{ background:c.bg, border:`1px solid ${c.border}`, borderRadius:10, padding:"14px 14px 12px", boxShadow:`0 0 14px ${c.glow}` }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:c.color, letterSpacing:"0.9px", marginBottom:6, fontFamily:"'IBM Plex Mono',monospace", opacity:0.8 }}>{c.label.toUpperCase()}</div>
+                            <div style={{ fontSize:30, fontWeight:600, color:c.color, fontFamily:"'IBM Plex Mono',monospace", lineHeight:1 }}>{data[c.key]||0}</div>
+                            <div style={{ fontSize:9.5, color:c.color, opacity:0.45, marginTop:4 }}>{c.sublabel}</div>
                           </div>
-                        </div>
-                        {/* Other */}
-                        <div style={{ background:"rgba(96,165,250,0.06)", border:"1px solid rgba(96,165,250,0.15)", borderRadius:10, padding:"12px 12px 10px" }}>
-                          <div style={{ fontSize:10, fontWeight:700, color:"#60a5fa", letterSpacing:"0.8px", marginBottom:8, fontFamily:"'IBM Plex Mono',monospace" }}>OTHER</div>
-                          <div style={{ fontSize:24, fontWeight:600, color:"#60a5fa", fontFamily:"'IBM Plex Mono',monospace", lineHeight:1, marginBottom:8 }}>{otherTotal}</div>
-                          <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
-                            {TYPES.map(t=>(
-                              <div key={t.key} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                                <span style={{ fontSize:9.5, color:"#2a4a6a", fontFamily:"'IBM Plex Mono',monospace" }}>{t.short}</span>
-                                <span style={{ fontSize:11, color:"#3b82f6", fontFamily:"'IBM Plex Mono',monospace", fontWeight:600 }}>{data.other[t.key]||0}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                        ))}
                       </div>
 
-                      {/* Total + Done */}
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7, marginBottom:12 }}>
-                        <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"9px", textAlign:"center" }}>
-                          <div style={{ fontSize:19, fontWeight:600, color:"#c9d4e8", fontFamily:"'IBM Plex Mono',monospace" }}>{total}</div>
-                          <div style={{ fontSize:9, color:"#2a3a52", fontWeight:700, letterSpacing:"1px", marginTop:2 }}>TOTAL SAMPLES</div>
-                        </div>
-                        <div style={{ background:"rgba(52,211,153,0.07)", border:"1px solid rgba(52,211,153,0.15)", borderRadius:8, padding:"9px", textAlign:"center" }}>
-                          <div style={{ fontSize:19, fontWeight:600, color:"#34d399", fontFamily:"'IBM Plex Mono',monospace" }}>{data.complete}/{data.count}</div>
-                          <div style={{ fontSize:9, color:"#34d399", opacity:0.6, fontWeight:700, letterSpacing:"1px", marginTop:2 }}>ORDERS DONE</div>
-                        </div>
-                      </div>
-
-                      {/* Sample mix bar */}
-                      {total>0&&(
-                        <div style={{marginBottom:10}}>
-                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                            {TYPES.map(t=>{
-                              const v=(data.finnrick[t.key]||0)+(data.other[t.key]||0);
-                              return <span key={t.key} style={{fontSize:10,color:t.color,fontFamily:"'IBM Plex Mono',monospace"}}>{t.short}&nbsp;{pct(v)}%</span>;
-                            })}
-                          </div>
-                          <StatBar segments={TYPES.map(t=>({color:t.color,pct:pct((data.finnrick[t.key]||0)+(data.other[t.key]||0))}))}/>
+                      {/* Revenue estimate */}
+                      {revenue > 0 && (
+                        <div style={{ background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.15)", borderRadius:9, padding:"10px 14px", marginBottom:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                          <span style={{ fontSize:11, color:"#92741a", fontWeight:600 }}>Est. Revenue</span>
+                          <span style={{ fontSize:16, fontWeight:700, color:"#fbbf24", fontFamily:"'IBM Plex Mono',monospace" }}>{fmt(revenue)}</span>
                         </div>
                       )}
 
-                      {/* Completion bar */}
-                      {data.count>0&&(
-                        <div>
-                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                            <span style={{fontSize:11,color:"#2a3a52",fontWeight:500}}>Completion</span>
-                            <span style={{fontSize:11,color:"#34d399",fontFamily:"'IBM Plex Mono',monospace",fontWeight:500}}>{compPct}%</span>
-                          </div>
-                          <div style={{height:3,borderRadius:99,overflow:"hidden",background:"rgba(255,255,255,0.04)"}}>
-                            <div style={{height:"100%",borderRadius:99,background:"#34d399",width:`${compPct}%`,transition:"width 0.6s ease",boxShadow:"0 0 6px rgba(52,211,153,0.4)"}}/>
-                          </div>
-                        </div>
-                      )}
+                      {/* Orders done */}
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                        <span style={{ fontSize:11, color:"#2a3a52", fontWeight:500 }}>Orders complete</span>
+                        <span style={{ fontSize:11, color:"#34d399", fontFamily:"'IBM Plex Mono',monospace" }}>{data.complete}/{data.count} &nbsp;{compPct}%</span>
+                      </div>
+                      <div style={{ height:3, borderRadius:99, overflow:"hidden", background:"rgba(255,255,255,0.04)" }}>
+                        <div style={{ height:"100%", borderRadius:99, background:"#34d399", width:`${compPct}%`, transition:"width 0.6s ease", boxShadow:"0 0 6px rgba(52,211,153,0.4)" }}/>
+                      </div>
                     </div>
                   );
                 })}
               </div>
             )}
           </>
+        )}
+
+        {/* ── REVENUE ── */}
+        {tab==="revenue" && (
+          <div style={{ maxWidth:860, margin:"0 auto" }}>
+            <div style={{ fontSize:11, fontWeight:600, color:"#3f4e63", marginBottom:20, letterSpacing:"0.8px", textTransform:"uppercase", fontFamily:"'IBM Plex Mono',monospace" }}>Pricing & Revenue</div>
+
+            {/* Price inputs */}
+            <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:12, padding:"24px 26px", marginBottom:20 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:"#d4dff0", marginBottom:4 }}>Set Price Per Sample</div>
+              <div style={{ fontSize:11.5, color:"#3f4e63", marginBottom:20 }}>Enter how much you charge per sample for each type. These are saved automatically.</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:16 }}>
+                {COUNTERS.map(c=>(
+                  <div key={c.key} style={{ background:c.bg, border:`1px solid ${c.border}`, borderRadius:10, padding:"16px 16px 14px", boxShadow:`0 0 12px ${c.glow}` }}>
+                    <div style={{ fontSize:10, fontWeight:700, color:c.color, letterSpacing:"0.9px", fontFamily:"'IBM Plex Mono',monospace", marginBottom:2 }}>{c.label.toUpperCase()}</div>
+                    <div style={{ fontSize:10, color:c.color, opacity:0.5, marginBottom:10 }}>{c.sublabel}</div>
+                    <div style={{ position:"relative" }}>
+                      <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:c.color, opacity:0.6, fontSize:14, fontWeight:600, pointerEvents:"none", marginTop:4 }}>$</span>
+                      <input
+                        className="price-input"
+                        type="number"
+                        placeholder="0.00"
+                        value={prices[c.key]||""}
+                        onChange={e=>setPrices(p=>({...p,[c.key]:parseFloat(e.target.value)||0}))}
+                        style={{ paddingLeft:26, color:c.color, borderColor:c.border }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Revenue table by month */}
+            <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:12, overflow:"hidden" }}>
+              <div style={{ padding:"16px 22px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ fontSize:13, fontWeight:600, color:"#d4dff0" }}>Revenue by Month</div>
+                <div style={{ fontSize:11, color:"#3f4e63", marginTop:2 }}>Calculated from your sample counts × prices above</div>
+              </div>
+
+              {monthDataDesc.length===0 ? (
+                <div style={{textAlign:"center",padding:"50px 20px",color:"#1e2d40"}}>
+                  <div style={{fontSize:13.5,fontWeight:500,color:"#2a3a52"}}>No data yet</div>
+                </div>
+              ) : (
+                <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                  <thead>
+                    <tr style={{ borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+                      {["Month","Finnrick","Other PEP","Endotoxin","Sterility","Total Revenue"].map((h,i)=>(
+                        <th key={i} style={{ padding:"10px 16px", fontSize:10.5, fontWeight:600, color:"#2a3a52", textTransform:"uppercase", letterSpacing:"0.8px", fontFamily:"'IBM Plex Mono',monospace", textAlign:i===0?"left":"right" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthDataDesc.map(([key,data],idx)=>{
+                      const isCur=key===nowKey;
+                      const finnRev  = data.finnrick  * (prices.finnrick  || 0);
+                      const pepRev   = data.peptide   * (prices.peptide   || 0);
+                      const endRev   = data.endotoxin * (prices.endotoxin || 0);
+                      const steRev   = data.sterility * (prices.sterility || 0);
+                      const total    = finnRev + pepRev + endRev + steRev;
+                      return (
+                        <tr key={key} style={{ borderBottom:idx===monthDataDesc.length-1?"none":"1px solid rgba(255,255,255,0.04)", background:isCur?"rgba(59,130,246,0.04)":"transparent" }}>
+                          <td style={{ padding:"11px 16px", fontSize:13, fontWeight:600, color: isCur?"#60a5fa":"#c9d4e8", fontFamily:"'IBM Plex Mono',monospace" }}>
+                            {gMonthLabel(key)}{isCur&&<span style={{ marginLeft:8, fontSize:9, background:"rgba(59,130,246,0.2)", color:"#60a5fa", borderRadius:10, padding:"1px 6px", fontWeight:700 }}>NOW</span>}
+                          </td>
+                          {[
+                            {v:data.finnrick,  r:finnRev, c:"#a78bfa"},
+                            {v:data.peptide,   r:pepRev,  c:"#94a3b8"},
+                            {v:data.endotoxin, r:endRev,  c:"#60a5fa"},
+                            {v:data.sterility, r:steRev,  c:"#a78bfa"},
+                          ].map((col,i)=>(
+                            <td key={i} style={{ padding:"11px 16px", textAlign:"right" }}>
+                              <div style={{ fontSize:12, fontWeight:600, color:col.c, fontFamily:"'IBM Plex Mono',monospace" }}>{col.v}</div>
+                              <div style={{ fontSize:10.5, color: col.r>0?"#64748b":"#2a3a52", fontFamily:"'IBM Plex Mono',monospace", marginTop:1 }}>{col.r>0?fmt(col.r):"—"}</div>
+                            </td>
+                          ))}
+                          <td style={{ padding:"11px 16px", textAlign:"right" }}>
+                            <div style={{ fontSize:14, fontWeight:700, color: total>0?"#fbbf24":"#2a3a52", fontFamily:"'IBM Plex Mono',monospace" }}>{total>0?fmt(total):"—"}</div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {/* Grand total row */}
+                    {monthDataDesc.length > 0 && (() => {
+                      const grand = monthDataDesc.reduce((acc,[,d])=>acc+calcRevenue(d),0);
+                      return (
+                        <tr style={{ borderTop:"1px solid rgba(255,255,255,0.1)", background:"rgba(251,191,36,0.04)" }}>
+                          <td style={{ padding:"12px 16px", fontSize:12, fontWeight:700, color:"#92741a", fontFamily:"'IBM Plex Mono',monospace", textTransform:"uppercase", letterSpacing:"0.5px" }}>All Time</td>
+                          {[
+                            monthDataDesc.reduce((a,[,d])=>a+d.finnrick,0),
+                            monthDataDesc.reduce((a,[,d])=>a+d.peptide,0),
+                            monthDataDesc.reduce((a,[,d])=>a+d.endotoxin,0),
+                            monthDataDesc.reduce((a,[,d])=>a+d.sterility,0),
+                          ].map((total,i)=>(
+                            <td key={i} style={{ padding:"12px 16px", textAlign:"right", fontSize:12, fontWeight:700, color:"#4a5a72", fontFamily:"'IBM Plex Mono',monospace" }}>{total}</td>
+                          ))}
+                          <td style={{ padding:"12px 16px", textAlign:"right", fontSize:16, fontWeight:700, color:"#fbbf24", fontFamily:"'IBM Plex Mono',monospace" }}>{grand>0?fmt(grand):"—"}</td>
+                        </tr>
+                      );
+                    })()}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
